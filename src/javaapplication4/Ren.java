@@ -35,6 +35,7 @@ import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedList;
 
 import com.jogamp.opengl.util.awt.Overlay;
@@ -77,12 +78,16 @@ public class Ren implements GLEventListener{
     private GLU glu = new GLU();
     private GLUT glut = new GLUT();
 
-    private ArrayList<javaapplication4.Point> userPoints = new ArrayList<javaapplication4.Point>();
+    private LinkedList<javaapplication4.Point> userPoints = new LinkedList<javaapplication4.Point>();
+    private HashMap<javaapplication4.Point, LinkedList<javaapplication4.Point>> airwayPoints =
+            new HashMap<javaapplication4.Point, LinkedList<javaapplication4.Point>>();
 
     public static short[][][] arr;
 
     TextRenderer tr;
     Overlay overlay;
+
+    private int counter = 0;
     
     
     
@@ -184,8 +189,28 @@ public class Ren implements GLEventListener{
 
             if (userPoints.size() != 0) {
                 for (javaapplication4.Point p: userPoints) {
-                    drawSphere(gl, p);
-                    drawString(gl, p, String.valueOf(userPoints.indexOf(p)));
+                    drawSphere(gl, p, 0.03f);
+                    //drawString(gl, p, String.valueOf(userPoints.indexOf(p)), 7);
+                }
+
+                float[] mat_specular2 = {0.5f,
+                        0.5f,
+                        1.0f,
+                        1.0f};
+                float[] mat_ambient2 = {0.4f,
+                        0.4f,
+                        0.9f,
+                        1.0f};
+                float[] mat_shininess2 = {50.0f};
+                gl.glMaterialfv(GL.GL_FRONT, GL2.GL_SPECULAR, Buffers.newDirectFloatBuffer(mat_specular2));
+                gl.glMaterialfv(GL.GL_FRONT, GL2.GL_AMBIENT, Buffers.newDirectFloatBuffer(mat_ambient2));
+                gl.glMaterialfv(GL.GL_FRONT, GL2.GL_SHININESS, Buffers.newDirectFloatBuffer(mat_shininess2));
+                for (javaapplication4.Point p: userPoints) {
+                    for (javaapplication4.Point ap: airwayPoints.get(p)) {
+                        drawSphere(gl, ap, 0.01f);
+                        //drawString(gl, ap, String.valueOf(userPoints.indexOf(p)), 3);
+                        drawLine(gl, p, ap);
+                    }
                 }
 
             }
@@ -208,6 +233,38 @@ public class Ren implements GLEventListener{
         this.initCanvas(canvas);
     }
 
+    private void drawLine(GL2 gl, javaapplication4.Point beginPoint, javaapplication4.Point endPoint) {
+        int zl = arr.length / 2;
+        int yl = arr[0].length / 2;
+        int xl = arr[0][0].length / 2;
+        float bx = 1.0f / xl * (beginPoint.GetX() - xl);
+        float by = 1.0f / yl * (beginPoint.GetY() - yl);
+        float bz = 1.0f / zl * (beginPoint.GetZ() - zl);
+        float ex = 1.0f / xl * (endPoint.GetX() - xl);
+        float ey = 1.0f / yl * (endPoint.GetY() - yl);
+        float ez = 1.0f / zl * (endPoint.GetZ() - zl);
+
+        gl.glColor4f(0.5f, 0.5f, 1.0f, 1.0f);
+        gl.glLineWidth(5);
+        gl.glBegin(GL2.GL_LINES);
+            gl.glVertex3f(bx, by, bz);
+            gl.glVertex3f(ex, ey, ez);
+        gl.glEnd();
+
+        int dx = Math.abs(beginPoint.GetX() - endPoint.GetX());
+        int dy = Math.abs(beginPoint.GetY() - endPoint.GetY());
+        int dz = Math.abs(beginPoint.GetZ() - endPoint.GetZ());
+
+        float distance = (float)Math.sqrt(Math.pow(DicomLoader.x * dx, 2) + Math.pow(DicomLoader.y * dy, 2) + Math.pow(DicomLoader.z * dz, 2));
+
+        javaapplication4.Point lineCenter = new javaapplication4.Point((beginPoint.GetX() + endPoint.GetX()) / 2,
+                (beginPoint.GetY() + endPoint.GetY()) / 2,
+                (beginPoint.GetZ() + endPoint.GetZ()) / 2);
+
+        drawString(gl, lineCenter, String.format("%(.2fmm", distance), 1);
+
+    }
+
     public void actionPerformed(String path) {
         xRotation = 0.0f;
         yRotation = 0.0f;
@@ -220,10 +277,23 @@ public class Ren implements GLEventListener{
         color_data = null;
         normals = null;
         normal_data = null;
-        userPoints = new ArrayList<javaapplication4.Point>();
+        userPoints = new LinkedList<javaapplication4.Point>();
+        airwayPoints =
+                new HashMap<javaapplication4.Point, LinkedList<javaapplication4.Point>>();
 
         if(path != null && path != "")
             counting(arr);
+    }
+
+    public void addAirwayPoint(javaapplication4.Point point) {
+        javaapplication4.Point lastPoint = this.userPoints.getLast();
+        airwayPoints.get(lastPoint).add(point);
+    }
+
+    public void removeAirwayPoint(javaapplication4.Point point) {
+        for(javaapplication4.Point p: userPoints) {
+            airwayPoints.get(p).remove(point);
+        }
     }
 
     public static short[][][]getScene(String path) {
@@ -235,13 +305,15 @@ public class Ren implements GLEventListener{
 
     public void addUserPoint(javaapplication4.Point point) {
         this.userPoints.add(point);
+        airwayPoints.put(point, new LinkedList<javaapplication4.Point>());
     }
 
     public void removeUserPoint(javaapplication4.Point point) {
+        this.airwayPoints.remove(point);
         this.userPoints.remove(point);
     }
 
-    private void drawSphere(GL2 gl, javaapplication4.Point point) {
+    private void drawSphere(GL2 gl, javaapplication4.Point point, float radius) {
         gl.glPushMatrix();
         int zl = arr.length / 2;
         int yl = arr[0].length / 2;
@@ -250,17 +322,17 @@ public class Ren implements GLEventListener{
         float y = 1.0f / yl * (point.GetY() - yl);
         float z = 1.0f / zl * (point.GetZ() - zl);
         gl.glTranslatef(x, y, z);
-        glut.glutSolidSphere(0.03, 90, 90);
+        glut.glutSolidSphere(radius, 90, 90);
         gl.glPopMatrix();
     }
 
-    private void drawString(GL2 gl, javaapplication4.Point point, String string) {
+    private void drawString(GL2 gl, javaapplication4.Point point, String string, int diff) {
         int zl = arr.length / 2;
         int yl = arr[0].length / 2;
         int xl = arr[0][0].length / 2;
-        float x = 1.0f / xl * (point.GetX() - xl + 7);
-        float y = 1.0f / yl * (point.GetY() - yl + 7);
-        float z = 1.0f / zl * (point.GetZ() - zl + 7);
+        float x = 1.0f / xl * (point.GetX() - xl + diff);
+        float y = 1.0f / yl * (point.GetY() - yl + diff);
+        float z = 1.0f / zl * (point.GetZ() - zl + diff);
 //        gl.glPushMatrix();
 //        gl.glLoadIdentity();
         tr.begin3DRendering();
@@ -750,6 +822,35 @@ public class Ren implements GLEventListener{
             public void mouseClicked(MouseEvent e) {
                 if (SwingUtilities.isLeftMouseButton(e))
                     mousePos = e.getPoint();
+//                if (SwingUtilities.isRightMouseButton(e)) {
+//                    int x = e.getX();
+//                    int y = glcanvas.getHeight() - e.getY();
+//                    int yl = glcanvas.getHeight() / 2;
+//                    int xl = glcanvas.getWidth() / 2;
+//                    float vx = 1.0f / xl * (x - xl);
+//                    float vy = 1.0f / yl * (y - yl);
+//                    float vz = 1.0f;
+//                    MyVector viewVector = new MyVector(0.0f, 0.0f, -1.0f, vx, vy, vz);
+//                    float newX = viewVector.getX();
+//                    float newY = (float)(Math.cos(-xRotation) * viewVector.getY() - Math.sin(-xRotation) * viewVector.getZ());
+//                    float newZ = (float)(Math.sin(-xRotation) * viewVector.getY() + Math.cos(-xRotation) * viewVector.getZ());
+//                    viewVector.setX(newX);
+//                    viewVector.setY(newY);
+//                    viewVector.setZ(newZ);
+//                    newX = (float)(Math.cos(-yRotation) * viewVector.getX() + Math.sin(-yRotation) * viewVector.getZ());
+//                    newY = viewVector.getX();
+//                    newZ = (float)(-Math.sin(-yRotation) * viewVector.getX() + Math.cos(-yRotation) * viewVector.getZ());
+//                    viewVector.setX(newX);
+//                    viewVector.setY(newY);
+//                    viewVector.setZ(newZ);
+//                    newX = viewVector.getX();
+//                    newY = (float)(Math.cos(-xRotation) * viewVector.getY() - Math.sin(-xRotation) * viewVector.getZ());
+//                    newZ = viewVector.getX();
+//                    viewVector.setX(newX);
+//                    viewVector.setY(newY);
+//                    viewVector.setZ(newZ);
+//                    System.out.println("Vector(" + viewVector.getX() + ", " + viewVector.getY() + ", " + viewVector.getZ() + ")");
+//                }
             }
 
             @Override

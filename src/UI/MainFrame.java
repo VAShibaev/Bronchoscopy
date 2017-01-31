@@ -21,6 +21,7 @@ public class MainFrame extends JFrame {
     private JButton distance;
     private JButton close;
     private JButton clear;
+    private boolean countDistance = false;
 
 
     public static void main(String[] args) {
@@ -78,7 +79,7 @@ public class MainFrame extends JFrame {
         distance.setSize(200, 30);
         distance.setLocation(160, 525);
         add(distance);
-        distance.addActionListener(null);
+        distance.addActionListener(event -> CountDistance());
 
         clear.setEnabled(false);
         distance.setEnabled(false);
@@ -104,6 +105,20 @@ public class MainFrame extends JFrame {
         ((Ren)(this.glCanvas.getGLEventListener(0))).actionPerformed(path);
         clear.setEnabled(false);
         distance.setEnabled(false);
+    }
+
+    public void CountDistance() {
+        if (!countDistance) {
+            countDistance = true;
+            distance.setText("Поставить точку");
+            this.canvas2D.setMouseMode(true); // - в режиме определения расстояния
+
+        } else {
+            countDistance = false;
+            distance.setText("Определение расстояния");
+            this.canvas2D.setMouseMode(false); // - в режиме постановки точек
+        }
+
     }
 
 }

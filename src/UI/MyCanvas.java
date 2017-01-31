@@ -8,7 +8,9 @@ import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.util.EventListener;
+import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.TreeMap;
 
 /**
  * Created by stiv on 30.01.17.
@@ -18,19 +20,25 @@ public class MyCanvas extends JComponent{
     private int currentSlice = 0;
     private Graphics graphics;
     private LinkedList<Point> points = new LinkedList<Point>();
+    private HashMap<Point, LinkedList<Point>> airwayPoints = new HashMap<Point, LinkedList<Point>>();
     private String path = "";
     private Ren ren;
+    private boolean mouseMode = false;
 
     public MyCanvas(short[][][] scene, Ren ren) {
         super();
         this.ren = ren;
     }
 
+    public void setMouseMode(boolean mode) {
+        this.mouseMode = mode;
+    }
 
     public void actionPerformed(String path) {
         this.scene = null;
         this.points = new LinkedList<Point>();
         this.currentSlice = 0;
+        airwayPoints = new HashMap<Point, LinkedList<Point>>();
         this.path = path;
         if (path != "" && path != null) {
             this.SliceDrower(Ren.arr);
@@ -60,27 +68,59 @@ public class MyCanvas extends JComponent{
                 public void mouseClicked(MouseEvent e) {
                     if (scene != null) {
                         if (SwingUtilities.isLeftMouseButton(e)) {
-                            javaapplication4.Point point = new javaapplication4.Point(e.getX(), e.getY(), currentSlice);
-                            points.add(point);
-                            ren.addUserPoint(point);
-                            System.out.println("(" + point.GetX() + "; " + point.GetY() + "; " + point.GetZ() + ")");
-                            paint(graphics);
+                            if (!mouseMode) {
+                                Point point = new javaapplication4.Point(e.getX(), e.getY(), currentSlice);
+                                points.add(point);
+                                airwayPoints.put(point, new LinkedList<Point>());
+                                ren.addUserPoint(point);
+                                System.out.println("(" + point.GetX() + "; " + point.GetY() + "; " + point.GetZ() + ")");
+                                paint(graphics);
+                            } else {
+                                if (Ren.arr[currentSlice][e.getY()][e.getX()] == 9000) {
+                                    javaapplication4.Point point = new javaapplication4.Point(e.getX(), e.getY(), currentSlice);
+                                    Point lastPoint = points.getLast();
+                                    airwayPoints.get(lastPoint).add(point);
+                                    ren.addAirwayPoint(point);
+                                    System.out.println("(" + point.GetX() + "; " + point.GetY() + "; " + point.GetZ() + ")");
+                                    paint(graphics);
+                                }
+                            }
                         }
                         if (SwingUtilities.isRightMouseButton(e)) {
                             LinkedList<Point> removePoints = new LinkedList<Point>();
-                            for (Point p : points) {
-                                if (currentSlice == p.GetZ())
-                                    if (Math.sqrt(Math.pow(p.GetX() - e.getX(), 2) + Math.pow(p.GetY() - e.getY(), 2)) <= 10) {
-                                        removePoints.add(p);
-                                    }
-                            }
+                            if (!mouseMode) {
+                                for (Point p : points) {
+                                    if (currentSlice == p.GetZ())
+                                        if (Math.sqrt(Math.pow(p.GetX() - e.getX(), 2) + Math.pow(p.GetY() - e.getY(), 2)) <= 10) {
+                                            removePoints.add(p);
+                                        }
+                                }
 
-                            for (Point pr : removePoints) {
-                                points.remove(pr);
-                                ren.removeUserPoint(pr);
+                                for (Point pr : removePoints) {
+                                    points.remove(pr);
+                                    airwayPoints.remove(pr);
+                                    ren.removeUserPoint(pr);
+                                }
+                            } else {
+                                for (Point p : points) {
+                                    for (Point dp : airwayPoints.get(p)) {
+                                        if (currentSlice == dp.GetZ())
+                                            if (Math.sqrt(Math.pow(dp.GetX() - e.getX(), 2) + Math.pow(dp.GetY() - e.getY(), 2)) <= 10) {
+                                                removePoints.add(dp);
+                                            }
+                                    }
+                                }
+
+                                for (Point pr : removePoints) {
+                                    for (Point p : points) {
+                                        airwayPoints.get(p).remove(pr);
+                                    }
+                                    ren.removeAirwayPoint(pr);
+                                }
                             }
 
                             paint(graphics);
+
                         }
                     }
                 }
@@ -142,6 +182,18 @@ public class MyCanvas extends JComponent{
                     g2.drawOval(p.GetX() - 7, p.GetY() - 7, 14, 14);
                 }
             }
+
+            g2.setColor(Color.CYAN);
+            g2.setStroke(new BasicStroke(2));
+            for (Point p : points) {
+                for (Point ap: airwayPoints.get(p)) {
+                    if (ap.GetZ() == currentSlice) {
+                        g2.drawOval(ap.GetX(), ap.GetY(), 1, 1);
+                        g2.drawOval(ap.GetX() - 7, ap.GetY() - 7, 14, 14);
+                    }
+                }
+            }
+
         }
     }
 
