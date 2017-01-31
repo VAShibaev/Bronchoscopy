@@ -4,9 +4,17 @@ package javaapplication4;/*
  * and open the template in the editor.
  */
 
+
+import com.jogamp.graph.curve.opengl.RenderState;
+import com.jogamp.graph.font.*;
+import com.jogamp.graph.geom.SVertex;
 import com.jogamp.opengl.GL;
 import com.jogamp.opengl.GL2;
 import com.jogamp.opengl.GLAutoDrawable;
+
+import java.awt.*;
+import java.awt.Font;
+import java.awt.Point;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 
@@ -19,10 +27,7 @@ import com.jogamp.opengl.glu.GLUquadric;
 import com.jogamp.opengl.util.FPSAnimator;
 import com.jogamp.common.nio.Buffers;
 import com.jogamp.opengl.GL2ES2;
-import java.awt.Dimension;
-import java.awt.DisplayMode;
-import java.awt.GraphicsEnvironment;
-import java.awt.Point;
+
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
@@ -32,11 +37,15 @@ import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.LinkedList;
 
+import com.jogamp.opengl.util.awt.Overlay;
+import com.jogamp.opengl.util.awt.TextRenderer;
 import com.jogamp.opengl.util.gl2.GLUT;
+import com.jogamp.opengl.util.glsl.ShaderState;
 import javaapplication4.marchingCubes.*;
 import javaapplication4.Objects.*;
-import javax.swing.JFrame;
-import javax.swing.JPanel;
+
+import javax.swing.*;
+
 import UserInterface.*;
 
 
@@ -71,6 +80,9 @@ public class Ren implements GLEventListener{
     private ArrayList<javaapplication4.Point> userPoints = new ArrayList<javaapplication4.Point>();
 
     public static short[][][] arr;
+
+    TextRenderer tr;
+    Overlay overlay;
     
     
     
@@ -82,8 +94,8 @@ public class Ren implements GLEventListener{
          gl.glClearColor(0, 0, 0, 1);
          gl.glEnable(GL2.GL_DEPTH_TEST);
          gl.glShadeModel(GL2.GL_SMOOTH);
-         gl.glEnable(GL2.GL_CULL_FACE);
-         gl.glPolygonMode(GL2.GL_FRONT, GL2.GL_FILL);
+         //gl.glEnable(GL2.GL_CULL_FACE);
+         gl.glPolygonMode(GL2.GL_FRONT_AND_BACK, GL2.GL_FILL);
          gl.glEnable(GL2.GL_NORMALIZE);
 
          float[] light0_position = {1.0f, 1.0f, 1.0f, 0.0f};
@@ -101,6 +113,11 @@ public class Ren implements GLEventListener{
          gl.glEnable(GL2.GL_LIGHT1);
          gl.glEnable(GL2.GL_LIGHT2);
          gl.glEnable(GL2.GL_LIGHT3);
+
+
+        this.overlay = new Overlay(drawable);
+        tr = new TextRenderer(new java.awt.Font("SansSerif", Font.PLAIN, 72));
+
          
     }
 
@@ -112,8 +129,10 @@ public class Ren implements GLEventListener{
     @Override
     public void display(GLAutoDrawable drawable) {
         final GL2 gl = drawable.getGL().getGL2();
+        gl.glEnable(GL2.GL_LIGHTING);
         
         gl.glClear(GL2.GL_COLOR_BUFFER_BIT | GL2.GL_DEPTH_BUFFER_BIT);
+        //gl.glClear(GL2.GL_COLOR_BUFFER_BIT);
         gl.glMatrixMode(GL2.GL_MODELVIEW);
         gl.glLoadIdentity();
         
@@ -150,8 +169,6 @@ public class Ren implements GLEventListener{
             gl.glDisableClientState(GL2.GL_NORMAL_ARRAY);
             gl.glDisableClientState(GL2.GL_VERTEX_ARRAY);
 
-
-
             float[] mat_specular1 = {1.0f,
                     0.5f,
                     0.0f,
@@ -167,12 +184,12 @@ public class Ren implements GLEventListener{
 
             if (userPoints.size() != 0) {
                 for (javaapplication4.Point p: userPoints) {
-                    glut.glutSolidSphere(0.03, 90, 90);
+                    drawSphere(gl, p);
+                    drawString(gl, p, String.valueOf(userPoints.indexOf(p)));
                 }
+
             }
         }
-        
-        
         gl.glFlush();
     }
 
@@ -215,12 +232,43 @@ public class Ren implements GLEventListener{
         return arr;
     }
 
+
     public void addUserPoint(javaapplication4.Point point) {
         this.userPoints.add(point);
     }
 
     public void removeUserPoint(javaapplication4.Point point) {
         this.userPoints.remove(point);
+    }
+
+    private void drawSphere(GL2 gl, javaapplication4.Point point) {
+        gl.glPushMatrix();
+        int zl = arr.length / 2;
+        int yl = arr[0].length / 2;
+        int xl = arr[0][0].length / 2;
+        float x = 1.0f / xl * (point.GetX() - xl);
+        float y = 1.0f / yl * (point.GetY() - yl);
+        float z = 1.0f / zl * (point.GetZ() - zl);
+        gl.glTranslatef(x, y, z);
+        glut.glutSolidSphere(0.03, 90, 90);
+        gl.glPopMatrix();
+    }
+
+    private void drawString(GL2 gl, javaapplication4.Point point, String string) {
+        int zl = arr.length / 2;
+        int yl = arr[0].length / 2;
+        int xl = arr[0][0].length / 2;
+        float x = 1.0f / xl * (point.GetX() - xl + 7);
+        float y = 1.0f / yl * (point.GetY() - yl + 7);
+        float z = 1.0f / zl * (point.GetZ() - zl + 7);
+//        gl.glPushMatrix();
+//        gl.glLoadIdentity();
+        tr.begin3DRendering();
+        tr.setColor(1.0f, 0.0f, 0.0f, 1.0f);
+        tr.draw3D(string, x, y, z, 0.0004f);
+        tr.end3DRendering();
+//        gl.glPopMatrix();
+
     }
     
     
@@ -460,51 +508,51 @@ public class Ren implements GLEventListener{
                 for (int x = 0; x < arr[0][0].length - 2; x++) {
                     char[] chars = {'0', '0', '0', '0', '0', '0', '0', '0'};
 
-                    short v1 = arr[z][y][x];
+                    //short v1 = arr[z][y][x];
                     short sv1 = smoothedScene[z][y][x];
-                    if (v1 > BOTTOM_LIMIT && v1 < TOP_LIMIT || sv1 == 9000) {
+                    if (/*v1 > BOTTOM_LIMIT && v1 < TOP_LIMIT ||*/ sv1 == 9000) {
                         chars[0] = '1';
                     }
 
-                    short v2 = arr[z][y][x + 1];
+                    //short v2 = arr[z][y][x + 1];
                     short sv2 = smoothedScene[z][y][x + 1];
-                    if (v2 > BOTTOM_LIMIT && v2 < TOP_LIMIT || sv2 == 9000) {
+                    if (/*v2 > BOTTOM_LIMIT && v2 < TOP_LIMIT || */sv2 == 9000) {
                         chars[1] = '1';
                     }
 
-                    short v3 = arr[z][y + 1][x + 1];
+                    //short v3 = arr[z][y + 1][x + 1];
                     short sv3 = smoothedScene[z][y + 1][x + 1];
-                    if (v3 > BOTTOM_LIMIT && v3 < TOP_LIMIT || sv3 == 9000) {
+                    if (/*v3 > BOTTOM_LIMIT && v3 < TOP_LIMIT ||*/ sv3 == 9000) {
                         chars[2] = '1';
                     }
 
-                    short v4 = arr[z][y + 1][x];
+                    //short v4 = arr[z][y + 1][x];
                     short sv4 = smoothedScene[z][y + 1][x];
-                    if (v4 > BOTTOM_LIMIT && v4 < TOP_LIMIT || sv4 == 9000) {
+                    if (/*v4 > BOTTOM_LIMIT && v4 < TOP_LIMIT ||*/ sv4 == 9000) {
                         chars[3] = '1';
                     }
 
-                    short v5 = arr[z + 1][y][x];
+                    //short v5 = arr[z + 1][y][x];
                     short sv5 = smoothedScene[z + 1][y][x];
-                    if (v5 > BOTTOM_LIMIT && v5 < TOP_LIMIT || sv5 == 9000) {
+                    if (/*v5 > BOTTOM_LIMIT && v5 < TOP_LIMIT ||*/ sv5 == 9000) {
                         chars[4] = '1';
                     }
 
-                    short v6 = arr[z + 1][y][x + 1];
+                    //short v6 = arr[z + 1][y][x + 1];
                     short sv6 = smoothedScene[z + 1][y][x + 1];
-                    if (v6 > BOTTOM_LIMIT && v6 < TOP_LIMIT || sv6 == 9000) {
+                    if (/*v6 > BOTTOM_LIMIT && v6 < TOP_LIMIT ||*/ sv6 == 9000) {
                         chars[5] = '1';
                     }
 
-                    short v7 = arr[z + 1][y + 1][x + 1];
+                    //short v7 = arr[z + 1][y + 1][x + 1];
                     short sv7 = smoothedScene[z + 1][y + 1][x + 1];
-                    if (v7 > BOTTOM_LIMIT && v7 < TOP_LIMIT || sv7 == 9000) {
+                    if (/*v7 > BOTTOM_LIMIT && v7 < TOP_LIMIT ||*/ sv7 == 9000) {
                         chars[6] = '1';
                     }
 
-                    short v8 = arr[z + 1][y + 1][x];
+                    //short v8 = arr[z + 1][y + 1][x];
                     short sv8 = smoothedScene[z + 1][y + 1][x];
-                    if (v8 > BOTTOM_LIMIT && v8 < TOP_LIMIT || sv8 == 9000) {
+                    if (/*v8 > BOTTOM_LIMIT && v8 < TOP_LIMIT ||*/ sv8 == 9000) {
                         chars[7] = '1';
                     }
 
@@ -700,12 +748,14 @@ public class Ren implements GLEventListener{
 
             @Override
             public void mouseClicked(MouseEvent e) {
-                mousePos = e.getPoint();
+                if (SwingUtilities.isLeftMouseButton(e))
+                    mousePos = e.getPoint();
             }
 
             @Override
             public void mousePressed(MouseEvent e) {
-                mousePos = e.getPoint();
+                if (SwingUtilities.isLeftMouseButton(e))
+                    mousePos = e.getPoint();
             }
 
             @Override
